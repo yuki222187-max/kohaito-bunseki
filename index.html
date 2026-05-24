@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>高配当株 分析</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2028;
+    --panel2: #232b36;
+    --text: #e7ecf3;
+    --muted: #8b97a8;
+    --accent: #4ea3ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --border: #2c3540;
+    --avg: #ef4444;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  header { position: sticky; top: 0; background: rgba(15,20,25,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 12px 16px; z-index: 10; padding-top: calc(12px + env(safe-area-inset-top)); }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .back-btn { background: none; border: none; color: var(--accent); font-size: 16px; padding: 0; cursor: pointer; }
+  main { padding: 16px; max-width: 720px; margin: 0 auto; }
+
+  .search { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 16px; margin-bottom: 12px; }
+  .search:focus { outline: 2px solid var(--accent); }
+
+  .sector { margin-bottom: 20px; }
+  .sector h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px 0; padding-left: 4px; letter-spacing: 0.5px; }
+  .stock-list { display: flex; flex-direction: column; gap: 8px; }
+  .stock-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.15s; }
+  .stock-card:active { background: var(--panel2); }
+  .stock-info .name { font-size: 15px; font-weight: 600; }
+  .stock-info .code { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stock-yield { text-align: right; }
+  .stock-yield .value { font-size: 18px; font-weight: 700; color: var(--good); }
+  .stock-yield .label { font-size: 10px; color: var(--muted); }
+
+  .detail h1 { font-size: 20px; margin: 0 0 4px 0; }
+  .detail .meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .avg-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .avg-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+  .avg-cell .label { font-size: 11px; color: var(--muted); }
+  .avg-cell .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+
+  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+  .chart-wrap h3 { margin: 0 0 8px 0; font-size: 14px; font-weight: 600; }
+  .chart-wrap canvas { width: 100% !important; height: 220px !important; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; margin-top: 8px; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty { color: var(--muted); text-align: center; padding: 40px 20px; }
+  .hidden { display: none; }
+  .ext-links { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .ext-link { display: inline-block; padding: 8px 12px; background: var(--panel2); border-radius: 8px; color: var(--accent); text-decoration: none; font-size: 13px; }
+  .ext-link::after { content: " ↗"; }
+
+  .note-section { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 16px; }
+  .note-section h3 { margin: 0 0 10px 0; font-size: 14px; font-weight: 600; }
+  .note-memo { width: 100%; min-height: 100px; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+  .note-memo:focus { outline: 2px solid var(--accent); }
+  .purchase-row { display: grid; grid-template-columns: 40px 1fr 1fr 1.2fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .purchase-row .pr-label { font-size: 12px; color: var(--muted); text-align: center; }
+  .purchase-row input { padding: 8px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-size: 13px; width: 100%; box-sizing: border-box; }
+  .purchase-row input:focus { outline: 2px solid var(--accent); }
+  .purchase-row input[type="date"] { font-size: 12px; }
+  .purchase-header { display: grid; grid-template-columns: 40px 1fr 1fr 1.2fr; gap: 6px; font-size: 11px; color: var(--muted); margin-bottom: 4px; padding: 0 2px; }
+  .purchase-header div { text-align: center; }
+  .purchase-summary { margin-top: 10px; padding: 10px; background: var(--panel2); border-radius: 8px; display: flex; justify-content: space-between; font-size: 13px; }
+  .purchase-summary .label { color: var(--muted); }
+  .purchase-summary .value { font-weight: 700; color: var(--accent); }
+  .save-indicator { font-size: 11px; color: var(--good); margin-left: 8px; opacity: 0; transition: opacity 0.3s; }
+  .save-indicator.show { opacity: 1; }
+  .note-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--accent); font-size: 12px; cursor: pointer; }
+  .btn:active { background: var(--panel); }
+  .btn.danger { color: var(--bad); }
+
+  .header-right { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); }
+  .header-right button { background: none; border: none; color: var(--accent); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal-backdrop.hidden { display: none; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { margin: 0 0 12px 0; font-size: 16px; }
+  .modal label { font-size: 12px; color: var(--muted); display: block; margin: 12px 0 4px; }
+  .modal input[type="text"] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-size: 13px; box-sizing: border-box; }
+  .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .modal-actions .btn { flex: 1; min-width: 100px; text-align: center; }
+  .modal-close { background: none !important; color: var(--muted) !important; }
+  .modal .help { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .sync-status { font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 6px; }
+  .sync-status.ok { background: #16a34a33; color: var(--good); }
+  .sync-status.fail { background: #dc262633; color: var(--bad); }
+  .sync-status.pending { background: #ca8a0433; color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<header id="header">
+  <div id="header-list">
+    <h1>高配当株 分析<span id="sync-badge"></span></h1>
+    <div class="sub" id="header-sub">読み込み中...</div>
+  </div>
+  <div id="header-detail" class="hidden">
+    <button class="back-btn" onclick="showList()">← 一覧</button>
+  </div>
+  <div class="header-right">
+    <button onclick="openSettings()" title="設定">⚙️</button>
+  </div>
+</header>
+
+<div id="modal-settings" class="modal-backdrop hidden" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>⚙️ 設定</h2>
+
+    <label>Google スプレッドシート連携 URL</label>
+    <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" />
+    <div class="help">
+      設定すると、メモが自動的に Google スプレッドシートに保存されます。<br>
+      セットアップ手順は <a href="https://github.com/yuki222187-max/kohaito-bunseki" target="_blank" style="color:var(--accent)">リポジトリ内 webapp/スプレッドシート連携手順.md</a> を参照。<br>
+      未設定でも localStorage に保存はされます（端末内のみ）。
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="saveSettingsAndSync()">💾 保存して同期</button>
+      <button class="btn" onclick="pushAllToCloud()">📤 ローカル→クラウド</button>
+      <button class="btn" onclick="pullAllFromCloud()">📥 クラウド→ローカル</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn modal-close" onclick="closeSettings()">閉じる</button>
+    </div>
+
+    <div id="sync-log" class="help" style="margin-top: 12px;"></div>
+  </div>
+</div>
+
+<main>
+  <div id="view-list">
+    <input class="search" id="search" placeholder="銘柄名・コード・セクターで検索" />
+    <div id="list-container"></div>
+  </div>
+  <div id="view-detail" class="hidden detail"></div>
+</main>
+
+<script>
+const STATE = { data: null, charts: [] };
+
+async function load() {
+  try {
+    const res = await fetch('data.json?v=' + Date.now());
+    STATE.data = await res.json();
+    document.getElementById('header-sub').textContent = `${STATE.data.stocks.length} 銘柄`;
+    renderList();
+  } catch (e) {
+    document.getElementById('list-container').innerHTML = '<div class="empty">data.json の読み込みに失敗しました</div>';
+  }
+}
+
+function renderList(filter = '') {
+  const stocks = STATE.data.stocks.filter(s => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return s.name.toLowerCase().includes(q) || s.code.includes(q) || s.sector.toLowerCase().includes(q);
+  });
+  const bySector = {};
+  for (const s of stocks) {
+    (bySector[s.sector] ||= []).push(s);
+  }
+  const html = Object.entries(bySector).map(([sector, list]) => `
+    <div class="sector">
+      <h2>${escapeHtml(sector)}</h2>
+      <div class="stock-list">
+        ${list.map(s => `
+          <div class="stock-card" onclick="showDetail('${s.code}')">
+            <div class="stock-info">
+              <div class="name">${escapeHtml(s.name)}</div>
+              <div class="code">${s.code}</div>
+            </div>
+            <div class="stock-yield">
+              <div class="value">${s.avg.dividend ?? '-'}%</div>
+              <div class="label">10年平均利回り</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('list-container').innerHTML = html || '<div class="empty">該当銘柄なし</div>';
+}
+
+function showDetail(code) {
+  const s = STATE.data.stocks.find(x => x.code === code);
+  if (!s) return;
+  document.getElementById('view-list').classList.add('hidden');
+  document.getElementById('header-list').classList.add('hidden');
+  document.getElementById('view-detail').classList.remove('hidden');
+  document.getElementById('header-detail').classList.remove('hidden');
+  window.scrollTo(0, 0);
+
+  const yearMin = s.years[0], yearMax = s.years[s.years.length - 1];
+  const view = document.getElementById('view-detail');
+  view.innerHTML = `
+    <h1>${escapeHtml(s.name)}</h1>
+    <div class="meta">【${escapeHtml(s.sector)}】 ${s.code}　${yearMin}〜${yearMax}年</div>
+    <div class="avg-row">
+      <div class="avg-cell"><div class="label">配当利回り 平均</div><div class="value" style="color:var(--good)">${s.avg.dividend ?? '-'}%</div></div>
+      <div class="avg-cell"><div class="label">PER 平均</div><div class="value">${s.avg.per ?? '-'}</div></div>
+      <div class="avg-cell"><div class="label">PBR 平均</div><div class="value">${s.avg.pbr ?? '-'}</div></div>
+    </div>
+    <div class="chart-wrap"><h3>配当利回り (%)</h3><canvas id="chart-div"></canvas></div>
+    <div class="chart-wrap"><h3>PER (倍)</h3><canvas id="chart-per"></canvas></div>
+    <div class="chart-wrap"><h3>PBR (倍)</h3><canvas id="chart-pbr"></canvas></div>
+    <table>
+      <thead><tr><th>年</th><th>配当利回り</th><th>PER</th><th>PBR</th></tr></thead>
+      <tbody>
+        ${s.years.map((y, i) => `<tr><td>${y}</td><td>${fmt(s.dividend[i])}</td><td>${fmt(s.per[i])}</td><td>${fmt(s.pbr[i])}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="note-section">
+      <h3>📝 メモ <span class="save-indicator" id="save-indicator">保存しました</span></h3>
+      <textarea class="note-memo" id="note-memo" placeholder="次回購入目安、注目ポイントなど自由記入"></textarea>
+    </div>
+
+    <div class="note-section">
+      <h3>💰 購入記録</h3>
+      <div class="purchase-header">
+        <div></div><div>価格(円)</div><div>株数</div><div>日付</div>
+      </div>
+      ${[1,2,3].map(n => `
+        <div class="purchase-row">
+          <div class="pr-label">${n}回目</div>
+          <input type="number" inputmode="decimal" step="any" id="p${n}-price" placeholder="円">
+          <input type="number" inputmode="numeric" step="1" id="p${n}-shares" placeholder="株">
+          <input type="date" id="p${n}-date">
+        </div>
+      `).join('')}
+      <div class="purchase-summary">
+        <span><span class="label">合計株数：</span><span class="value" id="sum-shares">-</span></span>
+        <span><span class="label">平均取得単価：</span><span class="value" id="sum-avg">-</span></span>
+      </div>
+      <div class="purchase-summary">
+        <span><span class="label">投資総額：</span><span class="value" id="sum-total">-</span></span>
+      </div>
+    </div>
+
+    <div class="note-actions">
+      <button class="btn" onclick="exportAllNotes()">💾 全メモをコピー（バックアップ）</button>
+      <button class="btn" onclick="importNotes()">📥 メモを復元</button>
+      <button class="btn danger" onclick="clearStockNote('${s.code}')">🗑 この銘柄のメモ削除</button>
+    </div>
+
+    <div class="ext-links">
+      <a class="ext-link" href="https://irbank.net/${s.code}" target="_blank" rel="noopener">📊 IRbank</a>
+      <a class="ext-link" href="https://finance.yahoo.co.jp/quote/${s.code}.T" target="_blank" rel="noopener">📈 Yahoo!ファイナンス</a>
+    </div>
+  `;
+
+  destroyCharts();
+  STATE.charts.push(makeChart('chart-div', s.years, s.dividend, s.avg.dividend, '#4ade80'));
+  STATE.charts.push(makeChart('chart-per', s.years, s.per, s.avg.per, '#4ea3ff'));
+  STATE.charts.push(makeChart('chart-pbr', s.years, s.pbr, s.avg.pbr, '#fb923c'));
+
+  initNoteSection(s.code);
+}
+
+function showList() {
+  document.getElementById('view-list').classList.remove('hidden');
+  document.getElementById('header-list').classList.remove('hidden');
+  document.getElementById('view-detail').classList.add('hidden');
+  document.getElementById('header-detail').classList.add('hidden');
+  destroyCharts();
+}
+
+function destroyCharts() {
+  STATE.charts.forEach(c => c?.destroy());
+  STATE.charts = [];
+}
+
+function makeChart(canvasId, years, values, avg, color) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  const avgLine = avg != null ? years.map(() => avg) : null;
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [
+        {
+          label: '実績',
+          data: values,
+          borderColor: color,
+          backgroundColor: color + '33',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: color,
+          tension: 0,
+          fill: false,
+        },
+        ...(avgLine ? [{
+          label: `平均 ${avg}`,
+          data: avgLine,
+          borderColor: 'var(--avg)',
+          borderColor: '#ef4444',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+        }] : []),
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8b97a8', font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}` } },
+      },
+      scales: {
+        x: { ticks: { color: '#8b97a8', font: { size: 10 } }, grid: { color: '#2c354033' } },
+        y: { ticks: { color: '#8b97a8', font: { size: 10 } }, grid: { color: '#2c354055' } },
+      },
+    },
+  });
+}
+
+function fmt(v) { return v == null ? '-' : v; }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const NOTE_PREFIX = 'kohaito_note_';
+const NOTE_INDEX_KEY = 'kohaito_note_index';
+const GAS_URL_KEY = 'kohaito_gas_url';
+
+function getGasUrl() {
+  return localStorage.getItem(GAS_URL_KEY) || '';
+}
+
+function setSyncBadge(state) {
+  const el = document.getElementById('sync-badge');
+  if (!el) return;
+  const map = {
+    ok: '<span class="sync-status ok">☁️ 同期</span>',
+    fail: '<span class="sync-status fail">⚠️ 同期失敗</span>',
+    pending: '<span class="sync-status pending">⏳ 同期中</span>',
+    off: '',
+  };
+  el.innerHTML = map[state] || '';
+}
+
+async function syncFromCloud() {
+  const url = getGasUrl();
+  if (!url) { setSyncBadge('off'); return { ok: false, reason: 'no_url' }; }
+  setSyncBadge('pending');
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'unknown');
+    // localStorage に書き戻す
+    for (const [code, note] of Object.entries(json.data)) {
+      localStorage.setItem(NOTE_PREFIX + code, JSON.stringify(note));
+    }
+    setSyncBadge('ok');
+    return { ok: true, count: Object.keys(json.data).length };
+  } catch (e) {
+    setSyncBadge('fail');
+    return { ok: false, error: String(e) };
+  }
+}
+
+async function syncOneToCloud(code, note) {
+  const url = getGasUrl();
+  if (!url) return { ok: false, reason: 'no_url' };
+  try {
+    // GAS の doPost は CORS preflight を避けるため text/plain で送る
+    const stock = STATE.data?.stocks?.find(s => s.code === code);
+    const payload = { code, name: stock?.name || '', memo: note.memo, purchases: note.purchases };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'unknown');
+    setSyncBadge('ok');
+    return { ok: true };
+  } catch (e) {
+    setSyncBadge('fail');
+    return { ok: false, error: String(e) };
+  }
+}
+
+function openSettings() {
+  document.getElementById('gas-url').value = getGasUrl();
+  document.getElementById('sync-log').textContent = '';
+  document.getElementById('modal-settings').classList.remove('hidden');
+}
+function closeSettings() {
+  document.getElementById('modal-settings').classList.add('hidden');
+}
+
+async function saveSettingsAndSync() {
+  const url = document.getElementById('gas-url').value.trim();
+  const log = document.getElementById('sync-log');
+  if (!url) {
+    localStorage.removeItem(GAS_URL_KEY);
+    log.textContent = 'URL を削除しました（localStorage のみで保存します）';
+    setSyncBadge('off');
+    return;
+  }
+  if (!/^https:\/\/script\.google\.com\//.test(url)) {
+    log.textContent = '⚠️ Google Apps Script の URL ではないようです（https://script.google.com/... の形式）';
+    return;
+  }
+  localStorage.setItem(GAS_URL_KEY, url);
+  log.textContent = '保存しました。クラウドから取得中...';
+  const r = await syncFromCloud();
+  if (r.ok) {
+    log.textContent = `✅ ${r.count} 銘柄分のメモを取得しました`;
+  } else {
+    log.textContent = `❌ 取得失敗: ${r.error || r.reason}`;
+  }
+}
+
+async function pushAllToCloud() {
+  const url = getGasUrl();
+  const log = document.getElementById('sync-log');
+  if (!url) { log.textContent = '⚠️ 先に URL を保存してください'; return; }
+  // localStorage の全メモを集める
+  const all = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(NOTE_PREFIX)) {
+      try { all[k.slice(NOTE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); } catch {}
+    }
+  }
+  const count = Object.keys(all).length;
+  if (count === 0) { log.textContent = '送信するメモがありません'; return; }
+  // 銘柄名を付与
+  for (const code of Object.keys(all)) {
+    const stock = STATE.data?.stocks?.find(s => s.code === code);
+    if (stock) all[code].name = stock.name;
+  }
+  log.textContent = `${count} 銘柄を送信中...`;
+  setSyncBadge('pending');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ bulk: all }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'unknown');
+    setSyncBadge('ok');
+    log.textContent = `✅ ${json.updated} 銘柄分をスプレッドシートに送信しました`;
+  } catch (e) {
+    setSyncBadge('fail');
+    log.textContent = `❌ 失敗: ${e}`;
+  }
+}
+
+async function pullAllFromCloud() {
+  const log = document.getElementById('sync-log');
+  log.textContent = 'クラウドから取得中...';
+  const r = await syncFromCloud();
+  if (r.ok) log.textContent = `✅ ${r.count} 銘柄分のメモをローカルに反映しました`;
+  else log.textContent = `❌ 失敗: ${r.error || r.reason}`;
+}
+
+function loadNote(code) {
+  try {
+    const raw = localStorage.getItem(NOTE_PREFIX + code);
+    if (!raw) return { memo: '', purchases: [{},{},{}] };
+    const parsed = JSON.parse(raw);
+    parsed.memo = parsed.memo || '';
+    parsed.purchases = parsed.purchases || [{},{},{}];
+    while (parsed.purchases.length < 3) parsed.purchases.push({});
+    return parsed;
+  } catch {
+    return { memo: '', purchases: [{},{},{}] };
+  }
+}
+
+function saveNote(code, note) {
+  const isEmpty = !note.memo && note.purchases.every(p => !p.price && !p.shares && !p.date);
+  if (isEmpty) {
+    localStorage.removeItem(NOTE_PREFIX + code);
+  } else {
+    localStorage.setItem(NOTE_PREFIX + code, JSON.stringify(note));
+  }
+  showSaveIndicator();
+  // クラウド連携が設定済みなら非同期送信
+  if (getGasUrl()) {
+    syncOneToCloud(code, note);
+  }
+}
+
+function showSaveIndicator() {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.classList.add('show');
+  clearTimeout(showSaveIndicator._t);
+  showSaveIndicator._t = setTimeout(() => el.classList.remove('show'), 1000);
+}
+
+function updatePurchaseSummary() {
+  let totalShares = 0, totalCost = 0;
+  for (let n = 1; n <= 3; n++) {
+    const p = parseFloat(document.getElementById(`p${n}-price`).value);
+    const s = parseFloat(document.getElementById(`p${n}-shares`).value);
+    if (!isNaN(p) && !isNaN(s) && p > 0 && s > 0) {
+      totalShares += s;
+      totalCost += p * s;
+    }
+  }
+  const avgEl = document.getElementById('sum-avg');
+  const sharesEl = document.getElementById('sum-shares');
+  const totalEl = document.getElementById('sum-total');
+  if (totalShares > 0) {
+    sharesEl.textContent = totalShares.toLocaleString() + ' 株';
+    avgEl.textContent = Math.round(totalCost / totalShares).toLocaleString() + ' 円';
+    totalEl.textContent = Math.round(totalCost).toLocaleString() + ' 円';
+  } else {
+    sharesEl.textContent = '-';
+    avgEl.textContent = '-';
+    totalEl.textContent = '-';
+  }
+}
+
+function initNoteSection(code) {
+  const note = loadNote(code);
+  const memoEl = document.getElementById('note-memo');
+  memoEl.value = note.memo;
+  for (let n = 1; n <= 3; n++) {
+    const p = note.purchases[n - 1] || {};
+    document.getElementById(`p${n}-price`).value = p.price ?? '';
+    document.getElementById(`p${n}-shares`).value = p.shares ?? '';
+    document.getElementById(`p${n}-date`).value = p.date ?? '';
+  }
+  updatePurchaseSummary();
+
+  const collectAndSave = () => {
+    const note = {
+      memo: memoEl.value,
+      purchases: [1,2,3].map(n => ({
+        price: document.getElementById(`p${n}-price`).value || '',
+        shares: document.getElementById(`p${n}-shares`).value || '',
+        date: document.getElementById(`p${n}-date`).value || '',
+      })),
+    };
+    saveNote(code, note);
+    updatePurchaseSummary();
+  };
+
+  const debounce = (fn, ms) => {
+    let t;
+    return () => { clearTimeout(t); t = setTimeout(fn, ms); };
+  };
+  const debouncedSave = debounce(collectAndSave, 400);
+
+  memoEl.addEventListener('input', debouncedSave);
+  for (let n = 1; n <= 3; n++) {
+    ['price','shares','date'].forEach(key => {
+      document.getElementById(`p${n}-${key}`).addEventListener('input', debouncedSave);
+    });
+  }
+}
+
+function exportAllNotes() {
+  const all = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(NOTE_PREFIX)) {
+      try { all[k.slice(NOTE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); } catch {}
+    }
+  }
+  const text = JSON.stringify(all, null, 2);
+  if (Object.keys(all).length === 0) {
+    alert('保存されているメモはありません');
+    return;
+  }
+  // クリップボードへコピー
+  navigator.clipboard.writeText(text).then(() => {
+    alert(`✅ ${Object.keys(all).length} 銘柄分のメモをクリップボードにコピーしました。\nメールやメモ帳に貼り付けて保存してください。`);
+  }).catch(() => {
+    // フォールバック：プロンプトで表示
+    prompt('以下のテキストをコピーして保存してください:', text);
+  });
+}
+
+function importNotes() {
+  const text = prompt('バックアップした JSON テキストを貼り付けてください:');
+  if (!text) return;
+  try {
+    const obj = JSON.parse(text);
+    let count = 0;
+    for (const [code, note] of Object.entries(obj)) {
+      localStorage.setItem(NOTE_PREFIX + code, JSON.stringify(note));
+      count++;
+    }
+    alert(`✅ ${count} 銘柄分のメモを復元しました。\n画面をリロードして確認してください。`);
+    location.reload();
+  } catch (e) {
+    alert('❌ 形式が正しくありません。バックアップした全文を貼り付けてください。');
+  }
+}
+
+function clearStockNote(code) {
+  if (!confirm('この銘柄のメモ・購入記録を削除しますか？')) return;
+  localStorage.removeItem(NOTE_PREFIX + code);
+  // 入力欄もクリア
+  const memoEl = document.getElementById('note-memo');
+  if (memoEl) memoEl.value = '';
+  for (let n = 1; n <= 3; n++) {
+    ['price','shares','date'].forEach(key => {
+      const el = document.getElementById(`p${n}-${key}`);
+      if (el) el.value = '';
+    });
+  }
+  updatePurchaseSummary();
+}
+
+document.getElementById('search').addEventListener('input', e => renderList(e.target.value));
+load();
+
+// 起動時にクラウド同期（URL 設定済みなら）
+if (getGasUrl()) {
+  syncFromCloud();
+} else {
+  setSyncBadge('off');
+}
+</script>
+</body>
+</html>
